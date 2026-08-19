@@ -1,0 +1,11 @@
+export const primaryBtn = { display: "flex", alignItems: "center", gap: 6, background: "var(--accent)", color: "var(--accentText)", border: "none", borderRadius: 7, padding: "8px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" };
+export const smallOutlineBtn = { display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 6, padding: "6px 10px", fontSize: 12, cursor: "pointer" };
+export const iconBtn = { background: "none", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 6, width: 28, height: 28, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
+export const miniIconBtn = { background: "none", border: "none", color: "var(--dim)", cursor: "pointer", display: "flex", alignItems: "center" };
+export const toggleBtn = { display: "flex", alignItems: "center", gap: 5, background: "var(--bg2)", border: "1px solid var(--border)", color: "var(--text)", borderRadius: 6, padding: "6px 10px", fontSize: 12, cursor: "pointer" };
+export const toggleBtnActive = { background: "var(--accent)", borderColor: "var(--accent)", color: "var(--accentText)" };
+export const titleInput = { background: "none", border: "none", outline: "none", color: "var(--text)", fontFamily: "'Fraunces', serif", fontSize: 18, fontWeight: 600, width: "100%" };
+export const textInput = { width: "100%", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 6, padding: "7px 10px", color: "var(--text)", fontSize: 13, outline: "none" };
+export const textArea = { width: "100%", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", color: "var(--text)", fontSize: 13, outline: "none", resize: "vertical" as const, fontFamily: "'Inter', sans-serif" };
+export const selectInput = { background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 8px", color: "var(--text)", fontSize: 12.5, outline: "none" };
+export const fieldLabel = { fontSize: 11.5, color: "var(--dim)", textTransform: "uppercase" as const, letterSpacing: 0.5, marginBottom: 5 };
