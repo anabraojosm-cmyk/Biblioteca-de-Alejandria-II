@@ -1,0 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:wght@400;600&family=Merriweather:wght@400;700&display=swap');
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Inter', sans-serif; }
+.no-select { -webkit-user-select: none; user-select: none; }
