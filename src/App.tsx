@@ -550,6 +550,7 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
   // initialData ya viene confirmado desde App(): o son tus datos reales, o null (usuario nuevo real).
   // Nunca llegamos aquí en caso de error o carga pendiente.
   const bundle = initialData ?? SEED_BUNDLE;
+  const hasLoadedLibrary = initialData !== null;
 
   const [universes, setUniverses] = useState(bundle.universes ?? seedUniverses);
   const [sagas, setSagas] = useState(bundle.sagas ?? seedSagas);
@@ -692,7 +693,12 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
               }
               : c
           );
-          supabase.from("library_data").upsert({ user_id: userId, data: { ...allStateRef.current, chapters: updated }, updated_at: new Date().toISOString() });
+          if (hasLoadedLibrary) {
+            supabase.from("library_data").update({
+              data: { ...allStateRef.current, chapters: updated },
+              updated_at: new Date().toISOString(),
+            }).eq("user_id", userId);
+          }
           return updated;
         });
       })
@@ -700,7 +706,12 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
         const row = payload.new;
         setSurveys((s: any[]) => {
           const updated = [...s, { id: row.id, chapterId: row.chapter_id, reader: row.reader_name || "Anónimo", importance: row.importance, impact: row.impact, opinion: row.opinion }];
-          supabase.from("library_data").upsert({ user_id: userId, data: { ...allStateRef.current, surveys: updated }, updated_at: new Date().toISOString() });
+          if (hasLoadedLibrary) {
+            supabase.from("library_data").update({
+              data: { ...allStateRef.current, surveys: updated },
+              updated_at: new Date().toISOString(),
+            }).eq("user_id", userId);
+          }
           return updated;
         });
       })
@@ -729,11 +740,14 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
 
   async function saveNow() {
     const snapshot = JSON.stringify(allState);
-    const { error } = await supabase.from("library_data").upsert({
-      user_id: userId,
+    if (!hasLoadedLibrary) {
+      setSaveError("La biblioteca no se ha cargado; no se guardaron datos.");
+      return;
+    }
+    const { error } = await supabase.from("library_data").update({
       data: allState,
       updated_at: new Date().toISOString(),
-    });
+    }).eq("user_id", userId);
     if (error) {
       console.error("Error guardando:", error);
       setSaveError("No se pudo guardar. Comprueba tu conexión.");
@@ -862,11 +876,13 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
     setChapters(updatedChapters);
     setShowBetaNotice(false);
     const nextState = { ...allState, chapters: updatedChapters };
-    const { error } = await supabase.from("library_data").upsert({
-      user_id: userId,
+    if (!hasLoadedLibrary) {
+      return;
+    }
+    const { error } = await supabase.from("library_data").update({
       data: nextState,
       updated_at: new Date().toISOString(),
-    });
+    }).eq("user_id", userId);
     if (!error) {
       snapshotRef.current = JSON.stringify(nextState);
       lastSavedAtRef.current = Date.now();
