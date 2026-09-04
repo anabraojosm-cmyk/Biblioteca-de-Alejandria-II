@@ -60,6 +60,7 @@ export default function App() {
   const [cloudData, setCloudData] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(false);
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -95,8 +96,14 @@ export default function App() {
       .eq("user_id", session.user.id)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (error) console.error("Error cargando datos:", error);
-        setCloudData(data?.data ?? null);
+        if (error) {
+          console.error("Error cargando library_data:", error);
+          setLoadError(error);
+          setCloudData(undefined); // undefined = "no sabemos todavía", nunca "usuario nuevo"
+        } else {
+          setLoadError(null);
+          setCloudData(data?.data ?? null); // null aquí SÍ significa "no existe fila" (consulta sin error)
+        }
         setLoadingData(false);
       });
   }, [session]);
@@ -104,6 +111,7 @@ export default function App() {
   if (checkingSession) return <CenteredMessage text="Bienvenida de nuevo, Majestad." subtitle="Como nos pidió, la biblioteca ha sido custodiada." />;
   if (!session) return <Auth />;
   if (showWelcomeMessage || loadingData) return <CenteredMessage text="Bienvenida de nuevo, Majestad." subtitle="Como nos pidió, la biblioteca ha sido custodiada." />;
+  if (loadError) return <CenteredMessage text="No se pudo abrir la biblioteca." subtitle="Hubo un problema de conexión. Por favor, recarga la página." />;
 
   return <Workspace key={session.user.id} userId={session.user.id} initialData={cloudData} />;
 }
@@ -166,24 +174,12 @@ function VaultTransition({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// MagicVault.tsx
-// Reemplaza el componente `MagicVault` (y opcionalmente `useVaultLight`) que
-// ya tienes en App.tsx por esta versión. Misma firma de props, misma lógica
-// de notas/filtros/formulario — solo cambia la piel visual para parecerse a
-// la cámara de piedra circular con el rayo de luz cenital y la mesa redonda.
-//
-// Requiere que sigan existiendo en tu archivo: smallOutlineBtn (import desde
-// "./styles") y useMemo/useState/useEffect de React, tal como ya los tienes.
-// ---------------------------------------------------------------------------
-
 function useVaultLight() {
   const [hour, setHour] = useState(new Date().getHours());
   useEffect(() => {
     const id = setInterval(() => setHour(new Date().getHours()), 5 * 60 * 1000);
     return () => clearInterval(id);
   }, []);
-  // Color del rayo de luz según la hora del día (mañana / mediodía / tarde / noche)
   if (hour >= 9 && hour < 13) return { glow: "rgba(255,201,140,0.9)", ambient: "rgba(255,196,140,0.10)" };
   if (hour >= 13 && hour < 17) return { glow: "rgba(173, 166, 126, 0.95)", ambient: "rgba(95, 37, 99, 0.12)" };
   if (hour >= 17 && hour < 20) return { glow: "rgba(183, 162, 76, 0.85)", ambient: "rgba(255,140,90,0.10)" };
@@ -236,19 +232,18 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
     return notes;
   }, [filter, notes]);
 
-  // Distribuye las notas sobre el óvalo de la mesa (coords en % del contenedor de escena)
-    function noteLayout(note: any, index: number, total: number) {
-      if (typeof note.left === "number" && typeof note.top === "number") {
-        return { rotate: note.rotate ?? 0, left: note.left, top: note.top };
-      }
-      const id = note.id;
+  function noteLayout(note: any, index: number, total: number) {
+    if (typeof note.left === "number" && typeof note.top === "number") {
+      return { rotate: note.rotate ?? 0, left: note.left, top: note.top };
+    }
+    const id = note.id;
     let h = 0;
     for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
     const spread = Math.min(total, 10);
     const t = spread <= 1 ? 0.5 : index / (spread - 1);
-    const angle = -0.9 + t * 1.8; // radianes, abanico frontal sobre la mesa
-    const rx = 15 + (h % 6); // radio horizontal %
-    const ry = 4.5 + (h % 3); // radio vertical % (perspectiva elíptica)
+    const angle = -0.9 + t * 1.8;
+    const rx = 15 + (h % 6);
+    const ry = 4.5 + (h % 3);
     return {
       rotate: (h % 16) - 8,
       left: 50 + Math.sin(angle) * rx,
@@ -277,7 +272,6 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
         ← Volver a la biblioteca
       </button>
 
-      {/* Escenario SVG: bóveda, arcos, mesa, haz de luz */}
       <div style={{ position: "relative", width: "100%", height: "calc(100vh - 8px)", minHeight: 620, maxWidth: "none", margin: "0 auto" }}>
         <svg viewBox="0 0 800 620" preserveAspectRatio="none" style={{ width: "100%", height: "100%", display: "block" }}>
           <defs>
@@ -319,23 +313,19 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
             </filter>
           </defs>
 
-          {/* Bóveda de piedra */}
           <rect x="0" y="0" width="800" height="620" fill="url(#domeGrad)" />
           <path d="M0,190 C105,86 247,33 400,42 C553,33 695,86 800,190 L800,0 L0,0 Z" fill="#17110c" opacity="0.44" />
-          {/* vetas y estratos orgánicos de la roca */}
           <g fill="none" stroke="#1d1209" opacity="0.42" filter="url(#stoneRelief)">
             <path d="M-30 112 C105 55 170 110 280 66 S495 38 612 84 S735 63 835 118" strokeWidth="8" />
             <path d="M-30 176 C88 121 174 177 286 132 S500 112 618 151 S739 132 835 182" strokeWidth="5" />
             <path d="M-20 250 C96 208 189 257 294 213 S505 191 622 226 S730 216 820 252" strokeWidth="3" />
           </g>
-          {/* Runas antiguas y sombras que se mueven suavemente sobre la piedra */}
           <g fill="none" stroke="#b79a55" strokeWidth="2" opacity="0.3" style={{ animation: "vaultRunePulse 7s ease-in-out infinite" }}>
             <path d="M104 142 l12 -16 12 16 -12 16z M116 126v32 M104 142h24" />
             <path d="M672 150 q12 -20 24 0 q-12 20 -24 0 M684 130v40" />
             <path d="M260 286 l12 -18 12 18 -12 20z M272 268v38" />
           </g>
           <path d="M80 276 C180 232 230 278 302 250 S454 228 520 260 S650 290 730 250 L760 430 C650 396 560 432 470 410 S270 392 150 430 Z" fill="#5a4c48" opacity="0.24" filter="url(#softBlur)" style={{ animation: "vaultShadowDrift 11s ease-in-out infinite" }} />
-          {/* Óculo + halo */}
           <ellipse cx="400" cy="94" rx="150" ry="65" fill="url(#oculusGlow)" filter="url(#softBlur)" />
           <ellipse cx="400" cy="94" rx="76" ry="29" fill="#5d5f2f" opacity="0.92" filter="url(#softBlurSm)" />
           <ellipse cx="400" cy="94" rx="76" ry="29" fill="#444831" opacity="0.48" />
@@ -343,13 +333,11 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
           <g fill="#bed173" style={{ animation: "vaultMossGlow 4s ease-in-out infinite" }}>
             <circle cx="104" cy="470" r="3" /><circle cx="112" cy="468" r="2" /><circle cx="692" cy="472" r="3" /><circle cx="700" cy="469" r="2" />
           </g>
-          {/* Haz de luz (forma orgánica, no polígono duro — bordes curvos + blur) */}
           <path
             d="M350,106 C377,114 425,109 451,106 C469,228 524,420 574,600 L216,600 C274,419 327,226 350,106 Z"
             fill="url(#beamGrad)" filter="url(#softBlur)"
             style={{ animation: "vaultBeamPulse 5s ease-in-out infinite" }}
           />
-          {/* Entradas talladas en la roca, deliberadamente mas pequenas y en perspectiva */}
           <g transform="translate(65 -112) skewX(-6) scale(.75 1.38)">
             <path d="M58 490 L58 350 C58 278 118 222 190 222 C254 222 308 270 322 340 L322 490 Z" fill="#21150d" stroke="#5e625f" strokeWidth="16" filter="url(#stoneRelief)" />
             <path d="M79 490 L79 352 C79 294 126 248 190 248 C245 248 287 288 300 345 L300 490 Z" fill="#100b07" />
@@ -376,7 +364,6 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
             </g>
           </g>
 
-          {/* Estanteria de Alejandria, solo decorativa en el sotano */}
           <g transform="translate(316 220)" opacity="0.92">
             <rect x="0" y="0" width="168" height="262" rx="5" fill="#24160d" stroke="#8b633c" strokeWidth="5" />
             <path d="M9 80 H159 M9 157 H159 M9 234 H159" stroke="#6a4527" strokeWidth="8" />
@@ -388,12 +375,10 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
             </g>
           </g>
 
-          {/* Suelo */}
           <path d="M0,540 C220,510 580,510 800,540 L800,620 L0,620 Z" fill="#211b14" />
           <path d="M0,548 C220,522 580,522 800,548" stroke="#0e0b08" strokeWidth="2" fill="none" opacity="0.6" />
           <path d="M0 586 C180 557 270 604 410 578 S650 558 800 592" stroke="#66503a" strokeWidth="2" fill="none" opacity="0.42" />
 
-          {/* Mesa rectangular, baja y en primer plano */}
           <path d="M0 520 L800 520 L800 620 L0 620 Z" fill="url(#tableEdge)" />
           <path d="M0 505 L800 505 L800 585 L0 585 Z" fill="url(#tableGrad)" />
           <path d="M0 519 L800 519" fill="none" stroke="#4f3518" strokeWidth="2" opacity="0.34" />
@@ -413,7 +398,6 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
           ))}
         </div>
 
-        {/* Pequenos objetos de estudio sobre la mesa: decorativos y no interactivos */}
         <div style={{ position: "absolute", left: "50%", top: "84%", width: 210, height: 42, transform: "translate(-50%, -50%) rotate(-5deg)", zIndex: 2, pointerEvents: "none", opacity: 0.9 }}>
           <div style={{ position: "absolute", left: 18, top: 13, width: 128, height: 24, background: "#c9b078", border: "1px solid #765632", boxShadow: "0 3px 5px rgba(0,0,0,.45)", transform: "rotate(4deg)" }}>
             <div style={{ width: "90%", margin: "7px auto 0", borderTop: "1px solid rgba(75,45,20,.55)", borderBottom: "1px solid rgba(75,45,20,.38)", height: 7 }} />
@@ -423,7 +407,6 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
           <div style={{ position: "absolute", left: 2, top: 20, width: 28, height: 3, borderRadius: 4, background: "#b78d52", transform: "rotate(-18deg)", boxShadow: "0 0 7px rgba(240,191,94,.5)" }} />
         </div>
 
-        {/* Vista decorativa de los mismos libros de Alejandria II */}
         <div style={{ position: "absolute", left: "40%", top: "39%", width: "20%", height: "37%", padding: "3px 4px", background: "linear-gradient(90deg, #0e0805, #2b180d, #0e0805)", border: "3px solid #51321d", boxShadow: "0 8px 18px rgba(0,0,0,.65)", zIndex: 1, pointerEvents: "none" }}>
           {[0, 1, 2].map((row) => (
             <div key={row} style={{ height: "33.333%", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 2, borderBottom: row < 2 ? "5px solid #432515" : "none", padding: "3px 2px" }}>
@@ -439,7 +422,6 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
           ))}
         </div>
 
-        {/* Motas de polvo (HTML, superpuestas sobre el haz) */}
         {!isMobile && Array.from({ length: 8 }).map((_, i) => (
           <div key={i} style={{
             position: "absolute", top: "16%", left: `calc(50% + ${(i % 5 - 2) * 12}px)`,
@@ -448,7 +430,6 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
           }} />
         ))}
 
-        {/* Avisos del sotano, sin personaje visible */}
         <div style={{ position: "absolute", left: isMobile ? "13%" : "18%", top: isMobile ? "42%" : "47%", maxWidth: isMobile ? "72%" : "30%", zIndex: 8 }}>
           {vaultPhrases.length > 0 && (
             <div key={phraseIndex} style={{ position: "relative" }}>
@@ -464,7 +445,6 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
           )}
         </div>
 
-        {/* Notas sobre la mesa */}
         {visibleNotes.length === 0 ? (
           <div style={{ position: "absolute", top: "79%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 12, color: "#e8d9b8", opacity: 0.75, textAlign: "center", width: "50%" }}>
             La mesa está vacía por ahora
@@ -505,7 +485,6 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
         })}
       </div>
 
-      {/* Controles: filtros + nueva nota */}
       <div style={{ maxWidth: 520, margin: "8px auto 40px", padding: "0 16px" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12, justifyContent: "center" }}>
           {['all', 'today', 'upcoming', 'urgent'].map((mode: string) => (
@@ -532,7 +511,6 @@ function MagicVault({ notifications, notes, books, sagas, characters, onAddNote,
   );
 }
 
-// Puerta en arco con antorchas, como las dos aberturas laterales de la referencia
 function VaultArchDoor({ side, isMobile }: { side: "left" | "right"; isMobile: boolean }) {
   const width = isMobile ? 74 : 120;
   const height = isMobile ? 130 : 210;
@@ -542,19 +520,16 @@ function VaultArchDoor({ side, isMobile }: { side: "left" | "right"; isMobile: b
       [side]: isMobile ? "-6%" : "1%",
       width, height, zIndex: 3,
     } as any}>
-      {/* marco en arco */}
       <div style={{
         position: "absolute", inset: 0, borderRadius: `${width}px ${width}px 6px 6px`,
         background: "linear-gradient(180deg, #6b5b46, #3c3226)",
         boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
       }} />
-      {/* hueco de la puerta (abierta, con luz cálida al fondo) */}
       <div style={{
         position: "absolute", top: "10%", left: "12%", right: "12%", bottom: "4%",
         borderRadius: `${width}px ${width}px 4px 4px`,
         background: "radial-gradient(ellipse at 50% 30%, rgba(255,196,120,0.35), rgba(20,14,8,0.95) 70%)",
       }} />
-      {/* antorcha */}
       <div style={{
         position: "absolute", top: "42%", [side === "left" ? "right" : "left"]: -10,
         width: 8, height: 8, borderRadius: "50%", background: "#ffb35c",
@@ -571,7 +546,10 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
   const [light, setLight] = useState(false);
   const T = light ? LIGHT : DARK;
   const authorName = "Ana Bramell";
-  const bundle = initialData || SEED_BUNDLE;
+
+  // initialData ya viene confirmado desde App(): o son tus datos reales, o null (usuario nuevo real).
+  // Nunca llegamos aquí en caso de error o carga pendiente.
+  const bundle = initialData ?? SEED_BUNDLE;
 
   const [universes, setUniverses] = useState(bundle.universes ?? seedUniverses);
   const [sagas, setSagas] = useState(bundle.sagas ?? seedSagas);
@@ -687,11 +665,6 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
               }));
             return { ...chapter, betaComments: comments };
           });
-          supabase.from("library_data").upsert({
-            user_id: userId,
-            data: { ...allStateRef.current, chapters: updated },
-            updated_at: new Date().toISOString(),
-          });
           return updated;
         });
       });
@@ -771,7 +744,7 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
     lastSavedAtRef.current = Date.now();
     setDirty(false);
     setSavedFlash(true);
-    window.dispatchEvent(new Event("atelier:cloud-saved")); // ← añadir esta línea
+    window.dispatchEvent(new Event("atelier:cloud-saved"));
     setTimeout(() => setSavedFlash(false), 2500);
   }
   
