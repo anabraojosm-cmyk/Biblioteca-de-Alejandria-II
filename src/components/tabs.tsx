@@ -1468,6 +1468,14 @@ export function BetaReaderTab({ bookId, userId, chapters, setChapters, surveys, 
   const [copied, setCopied] = useState(false);
   const activeChapter = chapters.find((c: any) => c.id === linkChapter);
   const chapterSurveys = surveys.filter((s: any) => s.chapterId === linkChapter);
+  const [chapterReads, setChapterReads] = useState<any[]>([]);
+  useEffect(() => {
+    if (!linkChapter) return;
+    supabase.from("beta_links").select("reader_name, opened_at, finished_at").eq("chapter_id", linkChapter).eq("owner_id", userId).then(({ data }) => {
+      if (data) setChapterReads(data);
+    });
+  }, [linkChapter, userId]);
+  const finishedCount = chapterReads.filter((r: any) => r.finished_at).length;
 
   async function generateLink() {
     if (!activeChapter) return;
@@ -1537,6 +1545,10 @@ export function BetaReaderTab({ bookId, userId, chapters, setChapters, surveys, 
       </div>
       {chapterSurveys.length > 0 && (
         <>
+        <div style={fieldLabel}>Lecturas de "{activeChapter?.title}"</div>
+        <div style={{ fontSize: 12.5, color: "var(--text)", marginBottom: 14 }}>
+        {chapterReads.length} enlace(s) generado(s) · {finishedCount} lectura(s) completada(s)
+        </div>
           <div style={fieldLabel}>Resumen de encuestas ({chapterSurveys.length})</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "8px 0 12px" }}>
             <div>

@@ -35,8 +35,9 @@ export default function ReaderPage() {
     setStep("register");
   }
 
-  function completeRegister() {
-    if (!name.trim()) return;
+    async function completeRegister() {
+    if (!name.trim() || !link) return;
+    await supabase.from("beta_links").update({ reader_name: name, opened_at: new Date().toISOString() }).eq("id", link.id);
     setStep("reading");
   }
 
@@ -73,7 +74,7 @@ export default function ReaderPage() {
         reader_name: name, importance: survey.importance || null, impact: survey.impact || null, opinion: survey.opinion || null,
       });
     }
-    await supabase.from("beta_links").update({ used: true }).eq("id", link.id).eq("used", false);
+    await supabase.from("beta_links").update({ used: true, finished_at: new Date().toISOString() }).eq("id", link.id).eq("used", false);
     setStep("done");
   }
 

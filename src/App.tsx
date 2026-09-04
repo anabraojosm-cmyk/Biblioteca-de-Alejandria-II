@@ -701,6 +701,8 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
     };
   }, [userId]);
 
+    const [pendingReads, setPendingReads] = useState<any[]>([]);
+
   useEffect(() => {
     const channel = supabase
       .channel(`beta-updates-${userId}`)
@@ -728,6 +730,12 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
           supabase.from("library_data").upsert({ user_id: userId, data: { ...allStateRef.current, surveys: updated }, updated_at: new Date().toISOString() });
           return updated;
         });
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "beta_links", filter: `owner_id=eq.${userId}` }, (payload: any) => {
+        const row = payload.new;
+        if (row.finished_at && !payload.old?.finished_at) {
+          setPendingReads((p: any[]) => [...p, { reader: row.reader_name || "Alguien", chapterTitle: row.chapter_title }]);
+        }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -910,13 +918,18 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
                 <MessageSquare size={16} color="var(--accent)" /> Nuevos comentarios de beta lectores
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                {pendingReads.map((p, i) => (
+                  <div key={`read-${i}`} style={{ fontSize: 13, color: "var(--text)", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, padding: 10 }}>
+                    <b>{p.reader}</b> ha terminado de leer <b>{p.chapterTitle}</b>.
+                  </div>
+                ))}
                 {pendingBeta.map((p, i) => (
-                  <div key={i} style={{ fontSize: 13, color: "var(--text)", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, padding: 10 }}>
+                  <div key={`comment-${i}`} style={{ fontSize: 13, color: "var(--text)", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, padding: 10 }}>
                     <b style={{ color: colorForReader(p.reader) }}>{p.reader}</b> ha comentado en <b>{p.chapter}</b>{p.book ? ` de "${p.book}"` : ""}.
                   </div>
                 ))}
               </div>
-              <button onClick={dismissBetaNotice} style={primaryBtn}>Cerrar</button>
+              <button onClick={() => { dismissBetaNotice(); setPendingReads([]); }} style={primaryBtn}>Cerrar</button>
             </div>
           </Modal>
         )}
