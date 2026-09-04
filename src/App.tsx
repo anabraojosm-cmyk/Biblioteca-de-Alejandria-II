@@ -550,7 +550,7 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
   // initialData ya viene confirmado desde App(): o son tus datos reales, o null (usuario nuevo real).
   // Nunca llegamos aquí en caso de error o carga pendiente.
   const bundle = initialData ?? SEED_BUNDLE;
-  const hasLoadedLibrary = initialData !== null;
+  const libraryExistsRef = useRef(initialData !== null);
 
   const [universes, setUniverses] = useState(bundle.universes ?? seedUniverses);
   const [sagas, setSagas] = useState(bundle.sagas ?? seedSagas);
@@ -693,7 +693,7 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
               }
               : c
           );
-          if (hasLoadedLibrary) {
+          if (libraryExistsRef.current) {
             supabase.from("library_data").update({
               data: { ...allStateRef.current, chapters: updated },
               updated_at: new Date().toISOString(),
@@ -706,7 +706,7 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
         const row = payload.new;
         setSurveys((s: any[]) => {
           const updated = [...s, { id: row.id, chapterId: row.chapter_id, reader: row.reader_name || "Anónimo", importance: row.importance, impact: row.impact, opinion: row.opinion }];
-          if (hasLoadedLibrary) {
+          if (libraryExistsRef.current) {
             supabase.from("library_data").update({
               data: { ...allStateRef.current, surveys: updated },
               updated_at: new Date().toISOString(),
@@ -738,22 +738,27 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
     return () => clearInterval(timer);
   }, [dirty]); // eslint-disable-line
 
-  async function saveNow() {
+  async function saveNow(allowCreate = false) {
     const snapshot = JSON.stringify(allState);
-    if (!hasLoadedLibrary) {
-      setSaveError("La biblioteca no se ha cargado; no se guardaron datos.");
-      return;
-    }
-    const { error } = await supabase.from("library_data").update({
-      data: allState,
-      updated_at: new Date().toISOString(),
-    }).eq("user_id", userId);
+    if (!libraryExistsRef.current && !allowCreate) return;
+    const query = libraryExistsRef.current
+      ? supabase.from("library_data").update({
+        data: allState,
+        updated_at: new Date().toISOString(),
+      }).eq("user_id", userId)
+      : supabase.from("library_data").insert({
+        user_id: userId,
+        data: allState,
+        updated_at: new Date().toISOString(),
+      });
+    const { error } = await query;
     if (error) {
       console.error("Error guardando:", error);
       setSaveError("No se pudo guardar. Comprueba tu conexión.");
       return;
     }
     setSaveError("");
+    libraryExistsRef.current = true;
     snapshotRef.current = snapshot;
     lastSavedAtRef.current = Date.now();
     setDirty(false);
@@ -876,7 +881,7 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
     setChapters(updatedChapters);
     setShowBetaNotice(false);
     const nextState = { ...allState, chapters: updatedChapters };
-    if (!hasLoadedLibrary) {
+    if (!libraryExistsRef.current) {
       return;
     }
     const { error } = await supabase.from("library_data").update({
@@ -891,7 +896,7 @@ function Workspace({ userId, initialData }: { userId: string; initialData: any }
 
   const headerControls = (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <SaveControl dirty={dirty} savedFlash={savedFlash} onSave={saveNow} light={light} setLight={setLight} />
+      <SaveControl dirty={dirty} savedFlash={savedFlash} onSave={() => saveNow(true)} light={light} setLight={setLight} />
       <button onClick={handleSignOut} style={smallOutlineBtn} title="Cerrar sesión"><LogOut size={13} /></button>
     </div>
   );
