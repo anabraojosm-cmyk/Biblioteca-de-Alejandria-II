@@ -87,42 +87,101 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [session]);
 
-  useEffect(() => {
+const [loadNotFound, setLoadNotFound] = useState(false);
+const [reloadTick, setReloadTick] = useState(0);
+
+useEffect(() => {
     if (!session) return;
+    let cancelled = false;
     setLoadingData(true);
-    supabase
-      .from("library_data")
-      .select("data")
-      .eq("user_id", session.user.id)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    setLoadNotFound(false);
+
+    const cuentaEsReciente = (() => {
+      const creada = new Date(session.user.created_at).getTime();
+      return Date.now() - creada < 2 * 60 * 1000; // menos de 2 minutos de antigüedad
+    })();
+
+    async function loadWithRetries() {
+      const maxAttempts = 4;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const { data, error } = await supabase
+          .from("library_data")
+          .select("data")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+
+        if (cancelled) return;
+
         if (error) {
           console.error("Error cargando library_data:", error);
           setLoadError(error);
-          setCloudData(undefined); // undefined = "no sabemos todavía", nunca "usuario nuevo"
-        } else {
-          setLoadError(null);
-          setCloudData(data?.data ?? null); // null aquí SÍ significa "no existe fila" (consulta sin error)
+          setCloudData(undefined);
+          setLoadingData(false);
+          return;
         }
+
+        if (data?.data) {
+          setLoadError(null);
+          setCloudData(data.data);
+          setLoadingData(false);
+          return;
+        }
+
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 900));
+        }
+      }
+
+      if (cancelled) return;
+
+      if (cuentaEsReciente) {
+        // Cuenta creada hace un momento: aquí sí es razonable que sea nueva.
+        setLoadError(null);
+        setCloudData(null);
         setLoadingData(false);
-      });
-  }, [session]);
+        return;
+      }
 
-  if (checkingSession) return <CenteredMessage text="Bienvenida de nuevo, Majestad." subtitle="Como nos pidió, la biblioteca ha sido custodiada." />;
-  if (!session) return <Auth />;
-  if (showWelcomeMessage || loadingData) return <CenteredMessage text="Bienvenida de nuevo, Majestad." subtitle="Como nos pidió, la biblioteca ha sido custodiada." />;
-  if (loadError) return <CenteredMessage text="No se pudo abrir la biblioteca." subtitle="Hubo un problema de conexión. Por favor, recarga la página." />;
+      // La cuenta ya existía de antes: un "no hay datos" aquí NUNCA es
+      // normal, así que nunca mostramos la biblioteca vacía. Avisamos.
+      setLoadError(null);
+      setCloudData(undefined);
+      setLoadNotFound(true);
+      setLoadingData(false);
+    }
 
-  return <Workspace key={session.user.id} userId={session.user.id} initialData={cloudData} />;
+    loadWithRetries();
+    return () => { cancelled = true; };
+  }, [session, reloadTick]);
+
+ if (checkingSession) return <CenteredMessage text="Bienvenida de nuevo, Majestad." subtitle="Como nos pidió, la biblioteca ha sido custodiada." />;
+if (!session) return <Auth />;
+if (showWelcomeMessage || loadingData) return <CenteredMessage text="Bienvenida de nuevo, Majestad." subtitle="Como nos pidió, la biblioteca ha sido custodiada." />;
+if (loadError) return <CenteredMessage text="No se pudo abrir la biblioteca." subtitle="Hubo un problema de conexión. Por favor, recarga la página." />;
+if (loadNotFound) {
+  return (
+    <CenteredMessage
+      text="No se han encontrado datos."
+      subtitle="Tu biblioteca ya existía, pero ahora mismo no se encuentra. No se ha borrado nada."
+    >
+      <button
+        onClick={() => setReloadTick((t) => t + 1)}
+        style={{ marginTop: 20, padding: "10px 20px", borderRadius: 8, border: "1px solid rgba(201,162,75,0.5)", background: "rgba(35,24,14,0.9)", color: "#F2E7C3", cursor: "pointer", fontSize: 13 }}
+      >
+        Reintentar
+      </button>
+    </CenteredMessage>
+  );
 }
 
-function CenteredMessage({ text, subtitle }: { text: string; subtitle?: string }) {
+function CenteredMessage({ text, subtitle, children }: { text: string; subtitle?: string; children?: React.ReactNode }) {
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "radial-gradient(circle at top, rgba(180, 146, 88, 0.18), transparent 42%), #15161d", color: "#F6F0E2", fontFamily: "'Inter', sans-serif" }}>
       <div style={{ textAlign: "center", position: "relative", padding: "10px 18px" }}>
         <div style={{ position: "absolute", inset: "-18px 8px -8px 8px", filter: "blur(26px)", background: "radial-gradient(circle, rgba(201, 162, 75, 0.26), transparent 62%)", pointerEvents: "none", animation: "mysticGlow 4s ease-in-out infinite alternate" }} />
         <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, letterSpacing: "0.08em", textTransform: "uppercase", color: "#F2E7C3", marginBottom: 10, position: "relative", textShadow: "0 0 8px rgba(255,255,255,0.8), 0 0 18px rgba(214, 181, 96, 0.7), 0 0 30px rgba(214, 181, 96, 0.35)", animation: "letterShimmer 3s ease-in-out infinite alternate" }}>{text}</div>
         {subtitle && <div style={{ fontSize: 12.5, color: "#C7B89A", letterSpacing: "0.22em", textTransform: "uppercase", opacity: 0.9, position: "relative", textShadow: "0 0 14px rgba(214, 181, 96, 0.28)", animation: "subtitlePulse 3.5s ease-in-out infinite alternate" }}>{subtitle}</div>}
+        {children && <div style={{ position: "relative" }}>{children}</div>}
       </div>
       <style>{`
         @keyframes mysticGlow {
