@@ -173,6 +173,7 @@ if (loadNotFound) {
     </CenteredMessage>
   );
 }
+}
 
 function CenteredMessage({ text, subtitle, children }: { text: string; subtitle?: string; children?: React.ReactNode }) {
   return (
