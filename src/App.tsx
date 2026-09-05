@@ -173,6 +173,8 @@ if (loadNotFound) {
     </CenteredMessage>
   );
 }
+
+return <Workspace key={session.user.id} userId={session.user.id} initialData={cloudData} />;
 }
 
 function CenteredMessage({ text, subtitle, children }: { text: string; subtitle?: string; children?: React.ReactNode }) {
